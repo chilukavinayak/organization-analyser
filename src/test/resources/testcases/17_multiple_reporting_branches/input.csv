@@ -1,0 +1,11 @@
+Id,firstName,lastName,salary,managerId
+1,CEO,Boss,300000,
+2,VP,Left,150000,1
+3,VP,Right,150000,1
+4,Dir,LeftA,100000,2
+5,Dir,LeftB,100000,2
+6,Dir,RightA,100000,3
+7,Dir,RightB,100000,3
+8,Mgr,Deep1,70000,4
+9,Mgr,Deep2,70000,5
+10,Lead,VeryDeep,50000,8

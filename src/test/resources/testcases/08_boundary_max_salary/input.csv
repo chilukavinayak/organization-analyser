@@ -1,0 +1,3 @@
+Id,firstName,lastName,salary,managerId
+1,John,CEO,75000,
+2,Alice,Worker,50000,1

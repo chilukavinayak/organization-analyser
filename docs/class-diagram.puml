@@ -1,0 +1,281 @@
+@startuml Organization Analyzer Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam class {
+    BackgroundColor #FEFEFE
+    BorderColor #333333
+    ArrowColor #333333
+}
+
+package "com.bigcompany.analyzer" {
+    class Application {
+        - {static} LOGGER: Logger
+        - {static} VERSION: String = "1.0.0"
+        + {static} EXIT_SUCCESS: int = 0
+        + {static} EXIT_ISSUES_FOUND: int = 1
+        + {static} EXIT_INVALID_ARGS: int = 2
+        + {static} EXIT_PARSE_ERROR: int = 3
+        + {static} EXIT_VALIDATION_ERROR: int = 4
+        + {static} EXIT_INTERNAL_ERROR: int = 5
+        --
+        + {static} main(args: String[]): void
+        + run(args: String[]): int
+        - doRun(args: String[]): int
+        - parseArguments(args: String[]): CommandLineArgs
+        - printUsage(): void
+        - printHelp(): void
+        - {static} configureLogging(): void
+    }
+}
+
+package "com.bigcompany.analyzer.config" {
+    class AnalyzerConfig <<final>> {
+        - minSalaryPercentageAboveSubordinates: double
+        - maxSalaryPercentageAboveSubordinates: double
+        - maxReportingLineLength: int
+        - {static} DEFAULT_MIN_SALARY_PERCENTAGE: double = 0.20
+        - {static} DEFAULT_MAX_SALARY_PERCENTAGE: double = 0.50
+        - {static} DEFAULT_MAX_REPORTING_LINE_LENGTH: int = 4
+        --
+        + {static} defaults(): AnalyzerConfig
+        + {static} load(): AnalyzerConfig
+        + getMinSalaryPercentageAboveSubordinates(): double
+        + getMaxSalaryPercentageAboveSubordinates(): double
+        + getMaxReportingLineLength(): int
+        + calculateMinExpectedSalary(avgSalary: double): double
+        + calculateMaxExpectedSalary(avgSalary: double): double
+    }
+}
+
+package "com.bigcompany.analyzer.model" {
+    class Employee <<final>> {
+        - id: String
+        - firstName: String
+        - lastName: String
+        - salary: double
+        - managerId: String
+        --
+        + Employee(id, firstName, lastName, salary, managerId)
+        + getId(): String
+        + getFirstName(): String
+        + getLastName(): String
+        + getFullName(): String
+        + getSalary(): double
+        + getManagerId(): String
+        + isCeo(): boolean
+        + equals(o: Object): boolean
+        + hashCode(): int
+        + toString(): String
+    }
+}
+
+package "com.bigcompany.analyzer.parser" {
+    class EmployeeCsvParser {
+        - {static} EXPECTED_COLUMNS: int = 5
+        - {static} COL_ID: int = 0
+        - {static} COL_FIRST_NAME: int = 1
+        - {static} COL_LAST_NAME: int = 2
+        - {static} COL_SALARY: int = 3
+        - {static} COL_MANAGER_ID: int = 4
+        --
+        + parseFile(filePath: Path): Map<String, Employee>
+        - validateHeader(headerLine: String): void
+        - parseLine(line: String, lineNumber: int): Employee
+    }
+
+    class CsvParseException {
+        + CsvParseException(message: String)
+        + CsvParseException(message: String, cause: Throwable)
+        + CsvParseException(lineNumber: int, message: String)
+        + CsvParseException(lineNumber: int, message: String, cause: Throwable)
+    }
+}
+
+package "com.bigcompany.analyzer.validation" {
+    class OrganizationDataValidator <<final>> {
+        - {static} LOGGER: Logger
+        - employees: Map<String, Employee>
+        --
+        + OrganizationDataValidator(employees: Map<String, Employee>)
+        + validate(): ValidationResult
+        - validateCeo(result: Builder): void
+        - validateManagerReferences(result: Builder): void
+        - validateNoCircularReferences(result: Builder): void
+        - validateConnectivity(result: Builder): void
+        - validateDataQuality(result: Builder): void
+        - hasCircularReference(employee: Employee): boolean
+        - collectReachableEmployees(managerId: String, reachable: Set): void
+    }
+
+    class ValidationResult <<final>> {
+        - errors: List<String>
+        - warnings: List<String>
+        --
+        + isValid(): boolean
+        + hasWarnings(): boolean
+        + getErrors(): List<String>
+        + getWarnings(): List<String>
+        + getErrorCount(): int
+        + getWarningCount(): int
+        + {static} success(): ValidationResult
+        + {static} builder(): Builder
+    }
+
+    class "ValidationResult.Builder" as ValidationResultBuilder {
+        - errors: List<String>
+        - warnings: List<String>
+        --
+        + addError(error: String): Builder
+        + addError(format: String, args: Object...): Builder
+        + addWarning(warning: String): Builder
+        + addWarning(format: String, args: Object...): Builder
+        + merge(other: ValidationResult): Builder
+        + build(): ValidationResult
+    }
+}
+
+package "com.bigcompany.analyzer.service" {
+    class OrganizationAnalyzer <<final>> {
+        - {static} LOGGER: Logger
+        - config: AnalyzerConfig
+        - employeesById: Map<String, Employee>
+        - subordinatesByManagerId: Map<String, List<Employee>>
+        - cachedSalaryResults: List<SalaryAnalysisResult>
+        - cachedReportingLineResults: List<ReportingLineResult>
+        --
+        + OrganizationAnalyzer(employees: Map<String, Employee>)
+        + OrganizationAnalyzer(employees: Map<String, Employee>, config: AnalyzerConfig)
+        + analyzeManagerSalaries(): List<SalaryAnalysisResult>
+        + getUnderpaidManagers(): List<SalaryAnalysisResult>
+        + getOverpaidManagers(): List<SalaryAnalysisResult>
+        + analyzeReportingLines(): List<ReportingLineResult>
+        + getEmployeesWithLongReportingLines(): List<ReportingLineResult>
+        + runAnalysis(): AnalysisStatistics
+        + findCeo(): Optional<Employee>
+        + getDirectSubordinates(managerId: String): List<Employee>
+        + getEmployeeCount(): int
+        + getConfig(): AnalyzerConfig
+        - buildSubordinatesMap(employees): Map<String, List<Employee>>
+        - calculateAverageSalary(employees: List<Employee>): double
+        - calculateReportingLineLength(employee: Employee): int
+    }
+
+    class SalaryAnalysisResult <<record>> {
+        + manager: Employee
+        + averageSubordinateSalary: double
+        + actualSalary: double
+        + minExpectedSalary: double
+        + maxExpectedSalary: double
+        + status: SalaryStatus
+        --
+        + getDeviation(): double
+        + isCompliant(): boolean
+    }
+
+    enum SalaryStatus {
+        UNDERPAID
+        WITHIN_RANGE
+        OVERPAID
+    }
+
+    class ReportingLineResult <<record>> {
+        + employee: Employee
+        + reportingLineLength: int
+        + maxAllowedLength: int
+        + excessLength: int
+        --
+        + isTooLong(): boolean
+    }
+
+    class AnalysisStatistics <<final>> {
+        - totalEmployees: int
+        - totalManagers: int
+        - underpaidManagerCount: int
+        - overpaidManagerCount: int
+        - longReportingLineCount: int
+        - maxReportingLineDepth: int
+        - executionTime: Duration
+        - analysisTimestamp: Instant
+        --
+        + getTotalEmployees(): int
+        + getTotalManagers(): int
+        + getUnderpaidManagerCount(): int
+        + getOverpaidManagerCount(): int
+        + getLongReportingLineCount(): int
+        + getMaxReportingLineDepth(): int
+        + getExecutionTime(): Duration
+        + getAnalysisTimestamp(): Instant
+        + getTotalIssues(): int
+        + hasIssues(): boolean
+        + getComplianceRate(): double
+        + {static} builder(): Builder
+    }
+
+    class "AnalysisStatistics.Builder" as AnalysisStatisticsBuilder {
+        + totalEmployees(count: int): Builder
+        + totalManagers(count: int): Builder
+        + underpaidManagerCount(count: int): Builder
+        + overpaidManagerCount(count: int): Builder
+        + longReportingLineCount(count: int): Builder
+        + maxReportingLineDepth(depth: int): Builder
+        + executionTime(duration: Duration): Builder
+        + analysisTimestamp(timestamp: Instant): Builder
+        + build(): AnalysisStatistics
+    }
+
+    class AnalysisReportPrinter <<final>> {
+        - {static} LINE_WIDTH: int = 80
+        - out: PrintStream
+        --
+        + AnalysisReportPrinter()
+        + AnalysisReportPrinter(out: PrintStream)
+        + printFullReport(analyzer: OrganizationAnalyzer): void
+        - printHeader(stats: AnalysisStatistics): void
+        - printConfigurationSummary(config: AnalyzerConfig): void
+        - printUnderpaidManagers(underpaid: List<SalaryAnalysisResult>): void
+        - printOverpaidManagers(overpaid: List<SalaryAnalysisResult>): void
+        - printLongReportingLines(longLines: List<ReportingLineResult>): void
+        - printStatistics(stats: AnalysisStatistics): void
+        - printFooter(stats: AnalysisStatistics): void
+    }
+}
+
+' Relationships - Application
+Application ..> AnalyzerConfig : loads
+Application ..> EmployeeCsvParser : uses
+Application ..> OrganizationDataValidator : uses
+Application ..> OrganizationAnalyzer : uses
+Application ..> AnalysisReportPrinter : uses
+
+' Relationships - Parser
+EmployeeCsvParser ..> Employee : creates
+EmployeeCsvParser ..> CsvParseException : throws
+CsvParseException --|> RuntimeException
+
+' Relationships - Validation
+OrganizationDataValidator o-- Employee : validates
+OrganizationDataValidator ..> ValidationResult : creates
+ValidationResult +-- ValidationResultBuilder : inner class
+
+' Relationships - Service
+OrganizationAnalyzer o-- AnalyzerConfig : uses
+OrganizationAnalyzer o-- Employee : analyzes
+OrganizationAnalyzer ..> SalaryAnalysisResult : creates
+OrganizationAnalyzer ..> ReportingLineResult : creates
+OrganizationAnalyzer ..> AnalysisStatistics : creates
+
+SalaryAnalysisResult o-- Employee : references
+SalaryAnalysisResult +-- SalaryStatus : contains
+
+ReportingLineResult o-- Employee : references
+
+AnalysisStatistics +-- AnalysisStatisticsBuilder : inner class
+
+AnalysisReportPrinter ..> OrganizationAnalyzer : uses
+AnalysisReportPrinter ..> AnalyzerConfig : prints
+AnalysisReportPrinter ..> AnalysisStatistics : prints
+AnalysisReportPrinter ..> SalaryAnalysisResult : prints
+AnalysisReportPrinter ..> ReportingLineResult : prints
+
+@enduml
